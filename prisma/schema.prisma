@@ -1,0 +1,182 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/beautiful_you_app/nodejs_space/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String        @id @default(uuid())
+  email       String?       @unique
+  password    String?
+  name        String        @default("Guest")
+  isGuest     Boolean       @default(false) @map("is_guest")
+  ageVerified Boolean       @default(false) @map("age_verified")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  settings    UserSettings?
+  moodEntries MoodEntry[]
+  favorites   UserFavorite[]
+  pushTokens  PushToken[]
+  chatMessages ChatMessage[]
+  communityPosts     CommunityPost[]
+  communityReactions CommunityReaction[]
+  communityReports   CommunityReport[]
+  journalEntries     JournalEntry[]
+
+  @@map("users")
+}
+
+model UserSettings {
+  id                   String   @id @default(uuid())
+  userId               String   @unique @map("user_id")
+  notificationsEnabled Boolean  @default(false) @map("notifications_enabled")
+  subscriptionStatus   String   @default("free") @map("subscription_status")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model Affirmation {
+  id        String         @id @default(uuid())
+  text      String
+  category  String
+  imageUrl  String?        @map("image_url")
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  favorites UserFavorite[]
+
+  @@index([category])
+  @@map("affirmations")
+}
+
+model UserFavorite {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  affirmationId String   @map("affirmation_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  affirmation Affirmation @relation(fields: [affirmationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, affirmationId])
+  @@map("user_favorites")
+}
+
+model MoodEntry {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  moodLevel Int      @map("mood_level")
+  notes     String?
+  date      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@map("mood_entries")
+}
+
+model PushToken {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  token      String   @unique
+  deviceType String?  @map("device_type")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("push_tokens")
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  chatType   String   @map("chat_type") // 'admin' | 'ai' | 'journal' | 'future_me'
+  role       String   // 'user' | 'assistant' | 'admin' | 'system'
+  content    String
+  deliverAt  DateTime? @map("deliver_at") // For future_me messages
+  delivered  Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, chatType])
+  @@index([chatType, delivered, deliverAt])
+  @@map("chat_messages")
+}
+
+// Community / Support Group
+model CommunityPost {
+  id            String            @id @default(uuid())
+  userId        String            @map("user_id")
+  displayName   String            @map("display_name") // Anonymous display name
+  content       String
+  category      String            @default("general") // general, anxiety, depression, trauma, recovery, gratitude
+  isHidden      Boolean           @default(false) @map("is_hidden")
+  heartsCount   Int               @default(0) @map("hearts_count")
+  hugsCount     Int               @default(0) @map("hugs_count")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reactions     CommunityReaction[]
+  reports       CommunityReport[]
+
+  @@index([category, createdAt])
+  @@index([userId])
+  @@map("community_posts")
+}
+
+model CommunityReaction {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  postId     String   @map("post_id")
+  type       String   // 'heart' | 'hug'
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post CommunityPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId, type])
+  @@map("community_reactions")
+}
+
+model CommunityReport {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  postId     String   @map("post_id")
+  reason     String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post CommunityPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@map("community_reports")
+}
+
+model JournalEntry {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  body      String
+  mood      Int?     // optional mood 1-5
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("journal_entries")
+}
